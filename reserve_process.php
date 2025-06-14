@@ -2,6 +2,7 @@
 session_start();
 include 'db.php';
 
+// 로그인 여부 체크 
 if (!isset($_SESSION['id'])) {
   header("Location: login.php");
   exit;
@@ -12,12 +13,14 @@ $flightNo = $_POST['flightNo'];
 $departureDateTime = $_POST['departureDateTime'];
 $seatClass = $_POST['seatClass'];
 $price = $_POST['price'];
-$cno = $_SESSION['cno']; // 회원 번호
+
+// cno와 email은 세션에 저장된 값을 가져온다.
+$cno = $_SESSION['cno']; 
 $email = $_SESSION['email'];
 echo "DEBUG: $flightNo $departureDateTime $seatClass $price $cno $email";
 
 
-// 중복 예약 확인
+// 중복 예약 확인 로직
 $checkSql = "
   SELECT COUNT(*) AS cnt
   FROM RESERVE
@@ -36,9 +39,13 @@ $checkStmt->execute([
 $row = $checkStmt->fetch(PDO::FETCH_ASSOC);
 
 if ($row['CNT'] > 0) {
-  echo "⚠️ 이미 동일한 조건으로 예약이 되어 있습니다.";
+  echo "<script>
+    alert('⚠️ 이미 동일한 조건으로 예약이 되어 있습니다.');
+    window.location.href = 'search.php';
+  </script>";
   exit;
 }
+
 
 
 // 예약 정보 INSERT
@@ -56,23 +63,54 @@ $stmt->execute([
 ]);
 
 
+// 이메일 보내기 로직
+// PHPMailer를 사용
+require 'PHPMailer-master/src/PHPMailer.php'; 
+require 'PHPMailer-master/src/SMTP.php';
+require 'PHPMailer-master/src/Exception.php';
 
+use PHPMailer\PHPMailer\PHPMailer;
+use PHPMailer\PHPMailer\Exception;
 
-// $userEmail = $_SESSION['email']; // 세션에 이메일 저장되어 있다고 가정
-// $subject = "CNU Airline 탑승권 확인서";
-// $message = "예약이 완료되었습니다.\n편명: $flightNo\n출발일: $departureDateTime\n좌석: $seatClass\n요금: $price 원";
-// $headers = "From: no-reply@cnu-airline.com";
+$mail = new PHPMailer(true); // PHPMailer를 이용하여 메일 생성
 
-// 실제 서버에서는 메일 서버 설정 필요
-// mail($userEmail, $subject, $message, $headers);
+try {
+    $mail->isSMTP();
+    $mail->Host = 'smtp.gmail.com';
+    $mail->SMTPAuth = true;
 
-// echo "<h2>예약이 성공적으로 완료되었습니다.</h2>";
-// echo "<p>이메일로 탑승권이 전송되었습니다.</p>";
-// echo "<a href='main.php'>메인으로 이동</a>";
+    $mail->Username = 'happy765696@gmail.com';       // 실제 Gmail 주소
+    $mail->Password = 'zrhzbfzfdashfnyt';         // 16자리 앱 비밀번호
+    $mail->SMTPSecure = 'tls';                     // 또는 'ssl'
+    $mail->Port = 587;
+
+    $mail->setFrom('happy765696@gmail.com', 'CNU Airline');
+    $mail->addAddress($email);
+
+    $mail->Subject = 'CNU Airline';
+    $mail->Body =
+"안녕하세요 고객님,
+
+예약이 성공적으로 완료되었습니다.
+
+- 항공편: $flightNo
+- 출발일시: $departureDateTime
+- 좌석 등급: $seatClass
+- 결제 금액: " . number_format($price) . "원
+
+즐거운 여행 되시기 바랍니다.
+
+CNU Airline 드림.";
+
+    $mail->send();
+    // echo "이메일 전송 성공!";
+} catch (Exception $e) {
+    echo "이메일 전송 실패: {$mail->ErrorInfo}";
+}
 
 echo "<script>
   alert('예약이 완료되었습니다!\\n탑승권이 이메일로 발송되었습니다.');
-  window.location.href = 'mypage.php?tab=reservation';
+  window.location.href = 'mypage.php?tab=history';
 </script>";
 exit;
 ?>
